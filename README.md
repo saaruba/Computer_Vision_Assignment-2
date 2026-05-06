@@ -3,7 +3,7 @@
 
 ---
 
-## 📌 Project Overview
+## Project Overview
 
 This project focuses on two main computer vision tasks:
 
@@ -14,7 +14,7 @@ The dataset contains a sequence of **51 RGB images** and corresponding **ground 
 
 ---
 
-## 🎯 Objectives
+## Objectives
 
 - Extract meaningful **shape features** from segmentation masks
 - Compute **texture features (HoG)** from images
@@ -195,7 +195,7 @@ Plots:
 
 ---
 
-## 🎥 Visualization
+## Visualization
 
 Overlay images:
 
