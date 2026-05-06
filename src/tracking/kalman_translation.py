@@ -1,29 +1,24 @@
+"""
+Kalman filter implementation for 2D translation tracking.This module tracks object position and velocity in image coordinates using a
+constant-velocity state model. It is used in the parachute tracking pipeline
+to predict centroid motion across frames.
+"""
+
 import numpy as np
 
 
 class TranslationKalmanFilter:
-    """
-    Kalman filter for 2D translation tracking with constant velocity dynamics.
+    
+    # Here the Kalman filter is for 2D translation with state [x, y, vx, vy].
 
-    State vector:
-        [x, y, vx, vy]^T
-
-    Measurement vector:
-        [x, y]^T
-    """
 
     def __init__(self, dt=1.0, process_noise=1.0, measurement_noise=5.0):
-        """
-        Initialize Kalman filter matrices and parameters.
-
-        Args:
-            dt (float): Time step between frames.
-            process_noise (float): Process noise scale.
-            measurement_noise (float): Measurement noise scale.
-        """
+        
+        # ToInitialize translation Kalman filter matrices and parameters.
         self.dt = float(dt)
 
-        # State transition matrix for constant velocity model.
+        # State transition matrix for constant velocity:
+        # x_t = x_(t-1) + vx*dt, y_t = y_(t-1) + vy*dt.
         self.F = np.array(
             [
                 [1.0, 0.0, self.dt, 0.0],
@@ -34,7 +29,7 @@ class TranslationKalmanFilter:
             dtype=float,
         )
 
-        # Measurement matrix (observes x and y only).
+        # Measurement matrix: only position is observed from segmentation.
         self.H = np.array(
             [
                 [1.0, 0.0, 0.0, 0.0],
@@ -43,7 +38,7 @@ class TranslationKalmanFilter:
             dtype=float,
         )
 
-        # Process noise covariance matrix.
+        # Process noise covariance controls motion model flexibility.
         self.Q = float(process_noise) * np.array(
             [
                 [self.dt**4 / 4.0, 0.0, self.dt**3 / 2.0, 0.0],
@@ -54,27 +49,23 @@ class TranslationKalmanFilter:
             dtype=float,
         )
 
-        # Measurement noise covariance matrix.
+        # Measurement noise covariance models centroid detection noise.
         self.R = float(measurement_noise) * np.eye(2, dtype=float)
 
-        # State covariance matrix.
+        # Initial state covariance: high uncertainty before enough observations.
         self.P = np.eye(4, dtype=float) * 1000.0
 
-        # Identity matrix.
+        # Identity matrix used in covariance update equation.
         self.I = np.eye(4, dtype=float)
 
-        # State vector [x, y, vx, vy]^T.
+        # Initial state vector [x, y, vx, vy]^T.
         self.x = np.zeros((4, 1), dtype=float)
         self.initialized = False
 
     def initialize(self, initial_x, initial_y):
-        """
-        Initialize state from first position measurement.
+    
+        #Initialize filter state from first centroid measurement.
 
-        Args:
-            initial_x (float): Initial x coordinate.
-            initial_y (float): Initial y coordinate.
-        """
         self.x = np.array(
             [[float(initial_x)], [float(initial_y)], [0.0], [0.0]],
             dtype=float,
@@ -82,16 +73,9 @@ class TranslationKalmanFilter:
         self.initialized = True
 
     def predict(self):
-        """
-        Run prediction step.
+        
+        #Perform the Kalman prediction step.
 
-        Prediction:
-            x = F x
-            P = F P F^T + Q
-
-        Returns:
-            np.ndarray: Predicted state vector shape (4, 1).
-        """
         if not self.initialized:
             raise RuntimeError("Filter must be initialized before calling predict().")
 
@@ -100,40 +84,30 @@ class TranslationKalmanFilter:
         return self.x
 
     def update(self, measurement_x, measurement_y):
-        """
-        Run measurement update step.
+        
+        # Here it perform the Kalman measurement update step.
 
-        Update:
-            y = z - H x
-            S = H P H^T + R
-            K = P H^T inv(S)
-            x = x + K y
-            P = (I - K H) P
-
-        Args:
-            measurement_x (float): Measured x coordinate.
-            measurement_y (float): Measured y coordinate.
-
-        Returns:
-            np.ndarray: Updated state vector shape (4, 1).
-        """
         if not self.initialized:
             raise RuntimeError("Filter must be initialized before calling update().")
 
         z = np.array([[float(measurement_x)], [float(measurement_y)]], dtype=float)
+
+        # Innovation/residual between measurement and prediction.
         y = z - (self.H @ self.x)
+
+        # Innovation covariance combines predicted uncertainty and measurement noise.
         S = self.H @ self.P @ self.H.T + self.R
+
+        # Kalman gain controls how strongly we trust the new measurement.
         K = self.P @ self.H.T @ np.linalg.inv(S)
 
+        # Correct state and covariance with current measurement.
         self.x = self.x + (K @ y)
         self.P = (self.I - (K @ self.H)) @ self.P
         return self.x
 
     def get_position(self):
-        """
-        Get current estimated position.
+        
+        #Return the current estimated object position.
 
-        Returns:
-            tuple: (x, y) current estimated coordinates.
-        """
         return float(self.x[0, 0]), float(self.x[1, 0])

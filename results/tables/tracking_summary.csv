@@ -1,0 +1,2 @@
+mean_translation_error,rmse_translation_error,max_translation_error,std_translation_error,mean_rotation_error,rmse_rotation_error,max_rotation_error,std_rotation_error
+2.0914619332964577,2.562932172522397,4.891463504512975,1.4813535373172115,1.1941849018989175,1.2563401079583525,1.8450043470508035,0.39027283654064066

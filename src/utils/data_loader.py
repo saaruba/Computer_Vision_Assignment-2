@@ -1,29 +1,49 @@
-# src/utils/data_loader.py
+"""
+Dataset loading utilities for the CMP9135M computer vision pipeline. And in this module provides a class that loads RGB image frames and their matching
+segmentation masks from disk. It ensures robust file alignment by filename
+stem, applies natural sorting for predictable frame order, converts image
+channels from OpenCV BGR to RGB, and converts grayscale mask images to
+binary masks (0/1) for downstream feature extraction and tracking tasks.
+"""
+
 import os
+
 import cv2
 import numpy as np
 
 
 class DatasetLoader:
-    """Load aligned RGB images and segmentation masks from two folders."""
+    """
+    Load aligned RGB frames and binary segmentation masks from two folders.
+    The class is designed for paired datasets where image and mask filenames
+    share the same stem (for example, `frame_01.png` in both directories).
+    """
 
     def __init__(self, images_folder, masks_folder):
-        """Initialize dataset loader with image and mask folder paths."""
+    
+        #Store dataset folder paths and initialize internal file lists.
+
         self.images_folder = images_folder
         self.masks_folder = masks_folder
         self.image_paths = []
         self.mask_paths = []
+
+        # Supported file extensions keep loading flexible across datasets.
         self.supported_extensions = (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff")
 
     def _validate_directories(self):
-        """Validate that both dataset directories exist."""
+    
+        #Validate that both input directories exist before reading any files.
+
         if not os.path.isdir(self.images_folder):
             raise FileNotFoundError(f"Images folder not found: {self.images_folder}")
         if not os.path.isdir(self.masks_folder):
             raise FileNotFoundError(f"Masks folder not found: {self.masks_folder}")
 
     def _natural_sort_key(self, text):
-        """Create natural sort keys so image2 comes before image10."""
+        
+        #Build a natural sorting key so numeric filename parts sort correctly.
+
         key = []
         current = ""
         is_digit = None
@@ -47,7 +67,9 @@ class DatasetLoader:
         return key
 
     def _list_supported_files(self, folder_path):
-        """List supported image files from a directory."""
+        
+        #List files in a folder that match supported image/mask extensions.
+
         files = []
         for name in os.listdir(folder_path):
             full_path = os.path.join(folder_path, name)
@@ -56,12 +78,15 @@ class DatasetLoader:
         return files
 
     def load_file_paths(self):
-        """Load and align image/mask file paths using filename stems."""
+        
+        #Load and align image/mask file paths by filename stem.
+
         self._validate_directories()
 
         image_files = self._list_supported_files(self.images_folder)
         mask_files = self._list_supported_files(self.masks_folder)
 
+        # Count check helps detect incomplete datasets early.
         if len(image_files) != len(mask_files):
             raise ValueError(
                 f"Image and mask counts do not match: "
@@ -85,6 +110,7 @@ class DatasetLoader:
         image_stems = set(image_map.keys())
         mask_stems = set(mask_map.keys())
 
+        # Explicit mismatch reporting makes debugging dataset issues easier.
         missing_masks = sorted(image_stems - mask_stems, key=self._natural_sort_key)
         missing_images = sorted(mask_stems - image_stems, key=self._natural_sort_key)
 
@@ -103,20 +129,27 @@ class DatasetLoader:
         return self.image_paths, self.mask_paths
 
     def load_images(self):
-        """Load images as RGB numpy arrays."""
+        
+        # Load aligned color images and convert them from BGR to RGB.
+
+    
         if not self.image_paths or not self.mask_paths:
             self.load_file_paths()
 
         images = []
         for image_path in self.image_paths:
+            # Read color image from disk.
             image = cv2.imread(image_path, cv2.IMREAD_COLOR)
             if image is None:
                 raise FileNotFoundError(f"Could not read image file: {image_path}")
+
+            # Convert BGR to RGB so colors are correct in matplotlib/pipeline.
             image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             images.append(image_rgb)
 
         images_array = np.array(images)
 
+        # Debug output helps confirm dataset size and image dimensionality.
         print(f"[DatasetLoader] Number of images loaded: {len(images_array)}")
         if len(images_array) > 0:
             print(f"[DatasetLoader] Sample image shape: {images_array[0].shape}")
@@ -124,21 +157,26 @@ class DatasetLoader:
         return images_array
 
     def load_masks(self):
-        """Load grayscale masks and binarize to 0/1."""
+        
+        # Load aligned mask images in grayscale and binarize them to 0/1 values.
+
         if not self.image_paths or not self.mask_paths:
             self.load_file_paths()
 
         masks = []
         for mask_path in self.mask_paths:
+            # Read mask as grayscale to get one channel per frame.
             mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
             if mask is None:
                 raise FileNotFoundError(f"Could not read mask file: {mask_path}")
 
+            # Convert grayscale mask to binary {0, 1} using a mid-level threshold.
             _, binary_mask = cv2.threshold(mask, 127, 1, cv2.THRESH_BINARY)
             masks.append(binary_mask.astype(np.uint8))
 
         masks_array = np.array(masks)
 
+        # Debug output helps validate loading and mask dimensions quickly.
         print(f"[DatasetLoader] Number of masks loaded: {len(masks_array)}")
         if len(masks_array) > 0:
             print(f"[DatasetLoader] Sample mask shape: {masks_array[0].shape}")
@@ -146,7 +184,9 @@ class DatasetLoader:
         return masks_array
 
     def get_data(self):
-        """Return aligned images and masks."""
+        """
+        Load and return aligned image and mask arrays in one call.
+        """
         self.load_file_paths()
         images = self.load_images()
         masks = self.load_masks()
